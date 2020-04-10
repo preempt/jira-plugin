@@ -42,7 +42,7 @@ public class IssueFieldUpdateStepTest {
     			"customfield_10100", 
     			"customfield_field_10100");
     	
-    	IssueFieldUpdateStep jifu = new IssueFieldUpdateStep(null, null, "");
+    	IssueFieldUpdateStep jifu = new IssueFieldUpdateStep(null, null, "", "false");
     	for( int i=0; i<field_test.size(); i++ )
 	    	assertEquals("Check field id conversion #" + Integer.toString(i),
 	    			jifu.prepareFieldId(field_test.get(i)),
@@ -63,7 +63,7 @@ public class IssueFieldUpdateStepTest {
         when(build.getEnvironment(listener)).thenReturn(env);
         when(listener.getLogger()).thenReturn(logger);
         
-		IssueFieldUpdateStep jifu = spy(new IssueFieldUpdateStep( null, "", "") );
+		IssueFieldUpdateStep jifu = spy(new IssueFieldUpdateStep( null, "", "", "false") );
 		jifu.perform(build, null, launcher, listener);
 		assertTrue("Check selector is null", build.getResult() == Result.FAILURE);
 	}
@@ -88,7 +88,7 @@ public class IssueFieldUpdateStepTest {
         for( int i=0; i<100; i++ )         	
 			fields_test.add(new JiraIssueField(issue_test, "value-"+Integer.toString(10100+i)));
         
-		IssueFieldUpdateStep jifu = spy(new IssueFieldUpdateStep(null, "", "") );
+		IssueFieldUpdateStep jifu = spy(new IssueFieldUpdateStep(null, "", "", "false") );
 		jifu.submitFields(session, issue_test, fields_test, logger);
 		
 		assertEquals("Check issues list size", issues_after.size(), 1);

@@ -1,6 +1,8 @@
 package hudson.plugins.jira.pipeline;
 
 import com.atlassian.jira.rest.client.api.RestClientException;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -17,6 +19,7 @@ import hudson.plugins.jira.selector.AbstractIssueSelector;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.Builder;
 import hudson.util.FormValidation;
+import jdk.nashorn.internal.ir.annotations.Immutable;
 import jenkins.tasks.SimpleBuildStep;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
@@ -70,11 +73,23 @@ public class IssueFieldUpdateStep extends Builder implements SimpleBuildStep {
         this.fieldValue = fieldValue;
     }
 
+    private boolean fieldTypeMultiple = false;
+
+    public String getFieldTypeMultiple() {
+        return Boolean.toString(fieldTypeMultiple);
+    }
+
+    @DataBoundSetter
+    public void setFieldTypeMultiple(String fieldTypeMultiple) {
+        this.fieldTypeMultiple = Boolean.parseBoolean(fieldTypeMultiple);
+    }
+
     @DataBoundConstructor
-    public IssueFieldUpdateStep(AbstractIssueSelector issueSelector, String fieldId, String fieldValue) {
+    public IssueFieldUpdateStep(AbstractIssueSelector issueSelector, String fieldId, String fieldValue, String fieldTypeMultiple) {
         this.issueSelector = issueSelector;
         this.fieldId = fieldId;
         this.fieldValue = fieldValue;
+        this.fieldTypeMultiple = Boolean.parseBoolean(fieldTypeMultiple);
     }
 
     public String prepareFieldId(String fieldId) {
@@ -86,7 +101,7 @@ public class IssueFieldUpdateStep extends Builder implements SimpleBuildStep {
 
     @Override
     public void perform(Run<?, ?> run, FilePath workspace, Launcher launcher, TaskListener listener)
-            throws IOException {
+            throws InterruptedException, IOException {
         PrintStream logger = listener.getLogger();
 
         AbstractIssueSelector selector = issueSelector;
@@ -116,7 +131,17 @@ public class IssueFieldUpdateStep extends Builder implements SimpleBuildStep {
         }
 
         List<JiraIssueField> fields = new ArrayList();
-        fields.add(new JiraIssueField(prepareFieldId(fieldId), fieldValue));
+        String expandedFieldValue = Util.fixEmptyAndTrim(run.getEnvironment(listener).expand(fieldValue));
+        JiraIssueField jiraIssueField;
+        if (fieldTypeMultiple && expandedFieldValue != null)
+        {
+            jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), ImmutableList.of(expandedFieldValue));
+        }
+        else
+        {
+            jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), expandedFieldValue);
+        }
+        fields.add(jiraIssueField);
 
         for (String issue : issues) {
             submitFields(session, issue, fields, logger);
