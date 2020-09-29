@@ -1,8 +1,8 @@
 package hudson.plugins.jira.pipeline;
 
 import com.atlassian.jira.rest.client.api.RestClientException;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import com.atlassian.jira.rest.client.api.domain.Issue;
+import com.atlassian.jira.rest.client.api.domain.IssueField;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -29,6 +29,7 @@ import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -124,27 +125,64 @@ public class IssueFieldUpdateStep extends Builder implements SimpleBuildStep {
             return;
         }
 
-        Set<String> issues = selector.findIssueIds(run, site, listener);
-        if (issues.isEmpty()) {
+        Set<String> issueIds = selector.findIssueIds(run, site, listener);
+
+        if (issueIds.isEmpty()) {
             logger.println("[Jira][IssueFieldUpdateStep] Issue list is empty!");
             return;
         }
 
-        List<JiraIssueField> fields = new ArrayList();
-        String expandedFieldValue = Util.fixEmptyAndTrim(run.getEnvironment(listener).expand(fieldValue));
-        JiraIssueField jiraIssueField;
-        if (fieldTypeMultiple && expandedFieldValue != null)
+        for (String issueId : issueIds)
         {
-            jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), ImmutableList.of(expandedFieldValue));
-        }
-        else
-        {
-            jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), expandedFieldValue);
-        }
-        fields.add(jiraIssueField);
+            List<JiraIssueField> fields = new ArrayList<>();
+            String expandedFieldValue = Util.fixEmptyAndTrim(run.getEnvironment(listener).expand(fieldValue));
+            JiraIssueField jiraIssueField = null;
+            if (fieldTypeMultiple)
+            {
+                if (expandedFieldValue != null)
+                {
+                    List<Object> values = new ArrayList<>();
+                    values.add(expandedFieldValue);
 
-        for (String issue : issues) {
-            submitFields(session, issue, fields, logger);
+                    Issue issue = session.getIssue(issueId);
+                    if (issue != null)
+                    {
+                        IssueField field = issue.getField(prepareFieldId(fieldId));
+                        if (field != null)
+                        {
+                            Object currValue = field.getValue();
+                            if (currValue != null)
+                            {
+                                if (currValue instanceof Collection)
+                                {
+                                    values.addAll(0, (Collection<?>) currValue);
+                                }
+                                else
+                                {
+                                    logger.println(String.format(
+                                            "[Jira][IssueFieldUpdateStep] Value for field %s on issue %s is not a collection. Value '%s' is of type %s",
+                                            fieldId,
+                                            issueId,
+                                            currValue.toString(),
+                                            currValue.getClass().getCanonicalName()));
+                                }
+                            }
+                        }
+                    }
+
+                    jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), values);
+                }
+            }
+            else
+            {
+                jiraIssueField = new JiraIssueField(prepareFieldId(fieldId), expandedFieldValue);
+            }
+
+            if (jiraIssueField != null)
+            {
+                fields.add(jiraIssueField);
+                submitFields(session, issueId, fields, logger);
+            }
         }
     }
 
